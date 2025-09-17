@@ -1,4 +1,71 @@
 // Package tcp provides TCP transport implementation for JSON-RPC communication.
+//
+// Example Usage:
+//
+// Server:
+//
+//	server, err := NewTcpServer("127.0.0.1:8080")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer server.Close()
+//
+//	for {
+//	    codec, err := server.Accept(context.Background())
+//	    if err != nil {
+//	        log.Printf("Accept error: %v", err)
+//	        continue
+//	    }
+//
+//	    go func() {
+//	        defer codec.Close()
+//	        for {
+//	            req, err := codec.ReadRequest(context.Background())
+//	            if err != nil {
+//	                log.Printf("Read error: %v", err)
+//	                return
+//	            }
+//
+//	            // Process request and create response
+//	            resp := &Response{
+//	                JSONRPC: "2.0",
+//	                Result:  "Hello " + req.Params.(map[string]any)["name"].(string),
+//	                ID:      req.ID,
+//	            }
+//
+//	            if err := codec.WriteResponse(context.Background(), resp); err != nil {
+//	                log.Printf("Write error: %v", err)
+//	                return
+//	            }
+//	        }
+//	    }()
+//	}
+//
+// Client:
+//
+//	client := NewTcpClient()
+//	if err := client.Connect(context.Background(), "127.0.0.1:8080"); err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer client.Close()
+//
+//	req := &Request{
+//	    JSONRPC: "2.0",
+//	    Method:  "greet",
+//	    Params:  map[string]any{"name": "World"},
+//	    ID:      1,
+//	}
+//
+//	if err := client.WriteRequest(context.Background(), req); err != nil {
+//	    log.Fatal(err)
+//	}
+//
+//	resp, err := client.ReadResponse(context.Background())
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//
+//	fmt.Printf("Response: %v\n", resp.Result)
 package jsonrpc
 
 import (

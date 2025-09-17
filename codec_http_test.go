@@ -394,8 +394,8 @@ func TestHttpCodecRemoteAddr(t *testing.T) {
 
 func TestServerNewServer(t *testing.T) {
 	handlers := map[string]Handler{
-		"test.method": func(ctx context.Context, req any) any {
-			return NewResponse("success", req.(*Request).ID)
+		"test.method": func(ctx context.Context, req *Request) *Response {
+			return NewResponse("success", req.ID)
 		},
 	}
 
@@ -420,8 +420,8 @@ func TestServerNewServer(t *testing.T) {
 
 func TestServerHandleHTTP(t *testing.T) {
 	handlers := map[string]Handler{
-		"test.method": func(ctx context.Context, req any) any {
-			return NewResponse("success", req.(*Request).ID)
+		"test.method": func(ctx context.Context, req *Request) *Response {
+			return NewResponse("success", req.ID)
 		},
 	}
 
@@ -605,20 +605,19 @@ func TestClientGetAddress(t *testing.T) {
 func TestIntegrationHTTPClientServer(t *testing.T) {
 	// Create a test handler
 	handlers := map[string]Handler{
-		"test.add": func(ctx context.Context, req any) any {
-			request := req.(*Request)
-			params, ok := request.Params.(map[string]any)
+		"test.add": func(ctx context.Context, req *Request) *Response {
+			params, ok := req.Params.(map[string]any)
 			if !ok {
-				return NewErrorResponse(InvalidParams, "Invalid params", nil, request.ID)
+				return NewErrorResponse(InvalidParams, "Invalid params", nil, req.ID)
 			}
 
 			a, ok1 := params["a"].(float64)
 			b, ok2 := params["b"].(float64)
 			if !ok1 || !ok2 {
-				return NewErrorResponse(InvalidParams, "Parameters must be numbers", nil, request.ID)
+				return NewErrorResponse(InvalidParams, "Parameters must be numbers", nil, req.ID)
 			}
 
-			return NewResponse(a+b, request.ID)
+			return NewResponse(a+b, req.ID)
 		},
 	}
 
@@ -658,8 +657,8 @@ func TestIntegrationHTTPClientServer(t *testing.T) {
 		}
 
 		resp := handler(r.Context(), request)
-		if respTyped, ok := resp.(*Response); ok && !request.IsNotification() {
-			codec.WriteResponse(r.Context(), respTyped)
+		if !request.IsNotification() {
+			codec.WriteResponse(r.Context(), resp)
 		}
 	}))
 	defer server.Close()

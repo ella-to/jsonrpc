@@ -1,4 +1,61 @@
 // Package http provides HTTP transport implementation for JSON-RPC communication.
+//
+// Example Usage:
+//
+// Server:
+//
+//	handlers := map[string]Handler{
+//	    "greet": func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+//	        params := req.Params.(map[string]any)
+//	        name := params["name"].(string)
+//	        return NewResponse("Hello "+name, req.ID)
+//	    },
+//	}
+//
+//	server := NewHttpServer("127.0.0.1:8080", "/rpc", handlers)
+//	log.Println("Server starting on :8080/rpc")
+//	if err := server.ListenAndServe(); err != nil {
+//	    log.Fatal(err)
+//	}
+//
+// Client:
+//
+//	client := NewHttpClient(&http.Client{})
+//	if err := client.Connect(context.Background(), "http://127.0.0.1:8080/rpc"); err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer client.Close()
+//
+//	req := &Request{
+//	    JSONRPC: "2.0",
+//	    Method:  "greet",
+//	    Params:  map[string]any{"name": "World"},
+//	    ID:      1,
+//	}
+//
+//	if err := client.WriteRequest(context.Background(), req); err != nil {
+//	    log.Fatal(err)
+//	}
+//
+//	resp, err := client.ReadResponse(context.Background())
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//
+//	fmt.Printf("Response: %v\n", resp.Result)
+//
+// Alternative: Using the high-level Client interface:
+//
+//	client := NewClient(NewHttpCodec(&http.Client{}))
+//	client.Connect(context.Background(), "http://127.0.0.1:8080/rpc")
+//	defer client.Close()
+//
+//	var result string
+//	err := client.CallWithResult(context.Background(), "greet", map[string]any{"name": "World"}, &result)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	fmt.Printf("Result: %s\n", result)
 package jsonrpc
 
 import (
@@ -198,7 +255,7 @@ func (c *HttpCodec) RemoteAddr() string {
 
 // Handler represents a function that handles JSON-RPC requests
 // We use any to avoid circular imports - this should be cast to appropriate jsonrpc
-type Handler func(ctx context.Context, req any) any
+type Handler func(ctx context.Context, req *Request) *Response
 
 // HttpServer implements Server for HTTP servers
 type HttpServer struct {
@@ -263,17 +320,14 @@ func (c *HttpServer) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := handler(r.Context(), req)
-	respTyped, ok := resp.(*Response)
-	if resp != nil && !ok {
-		respTyped = NewErrorResponse(InternalError, "Handler returned invalid response type", nil, req.ID)
-	}
-	if respTyped == nil && !req.IsNotification() {
-		respTyped = NewErrorResponse(InternalError, "Handler returned nil response", nil, req.ID)
+
+	if resp == nil && !req.IsNotification() {
+		resp = NewErrorResponse(InternalError, "Handler returned nil response", nil, req.ID)
 	}
 
 	// Don't send response for notifications
-	if !req.IsNotification() && respTyped != nil {
-		codec.WriteResponse(r.Context(), respTyped)
+	if !req.IsNotification() && resp != nil {
+		codec.WriteResponse(r.Context(), resp)
 	}
 }
 
