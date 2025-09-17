@@ -383,18 +383,3 @@ Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md)
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for a detailed list of changes and version history.
-
-## Support
-
-- 📖 [Documentation](https://pkg.go.dev/ella.to/jsonrpc)
-- 🐛 [Issue Tracker](https://github.com/your-repo/jsonrpc-v2/issues)
-- 💬 [Discussions](https://github.com/your-repo/jsonrpc-v2/discussions)
-
-## Acknowledgments
-
-- [JSON-RPC 2.0 Specification](https://www.jsonrpc.org/specification)
-- Go community for excellent feedback and contributions
