@@ -367,19 +367,6 @@ for i := 0; i < 10; i++ {
 wg.Wait()
 ```
 
-## Examples
-
-Check out the `/examples` directory for complete working examples:
-
-- [Basic HTTP Server/Client](examples/http)
-- [TCP Server/Client](examples/tcp)
-- [UDP Server/Client](examples/udp)
-- [Advanced Features](examples/advanced)
-
-## Contributing
-
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
