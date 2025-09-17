@@ -19,6 +19,9 @@ type Client struct {
 
 // NewClient creates a new JSON-RPC client
 func NewClient(codec ClientCodec) *Client {
+	if codec == nil {
+		panic("codec cannot be nil")
+	}
 	return &Client{
 		codec: codec,
 	}
@@ -28,6 +31,10 @@ func NewClient(codec ClientCodec) *Client {
 func (c *Client) Connect(ctx context.Context, address string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	if c.codec == nil {
+		return fmt.Errorf("codec is nil")
+	}
 
 	if err := c.codec.Connect(ctx, address); err != nil {
 		return err

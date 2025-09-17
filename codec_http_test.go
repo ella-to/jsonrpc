@@ -571,7 +571,8 @@ func TestHttpClientConnect(t *testing.T) {
 }
 
 func TestClientIsConnected(t *testing.T) {
-	client := NewClient(nil)
+	mockCodec := NewMockCodecClient()
+	client := NewClient(mockCodec)
 
 	// Initially not connected
 	if client.IsConnected() {
