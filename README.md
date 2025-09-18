@@ -22,7 +22,7 @@ A comprehensive, production-ready JSON-RPC 2.0 implementation for Go with suppor
 ### Installation
 
 ```bash
-go get ella.to/jsonrpc
+go get ella.to/jsonrpc@v0.0.1
 ```
 
 ### Basic HTTP Server

@@ -1,6 +1,3 @@
-// Copyright (c) 2025 JSON-RPC v2 Contributors
-// Licensed under the MIT License. See LICENSE file in the project root for full license information.
-
 // Package main demonstrates a simple HTTP JSON-RPC server and client.
 package main
 
