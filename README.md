@@ -12,7 +12,8 @@ A comprehensive, production-ready JSON-RPC 2.0 implementation for Go with suppor
 - **Client & Server**: Both client and server implementations
 - **Context Support**: Full context.Context integration for timeouts and cancellation
 - **Thread-Safe**: All operations are thread-safe and concurrent-friendly
-- **Type Safety**: Strong typing with validation
+- **Type Safety**: Strong typing with validation and `json.RawMessage` for flexible parameter handling
+- **Flexible Parameter Parsing**: Use `json.RawMessage` to parse parameters as arrays or objects based on your needs
 - **Error Handling**: Comprehensive error handling with standard JSON-RPC error codes
 - **Production Ready**: Battle-tested with extensive test coverage
 
@@ -31,6 +32,7 @@ package main
 
 import (
     "context"
+    "encoding/json"
     "log"
 
     "ella.to/jsonrpc"
@@ -40,15 +42,26 @@ func main() {
     // Define your RPC handlers
     handlers := map[string]jsonrpc.Handler{
         "math.add": func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-            params := req.Params.(map[string]any)
+            // Parse parameters from json.RawMessage
+            var params map[string]any
+            if err := json.Unmarshal(req.Params, &params); err != nil {
+                return jsonrpc.NewErrorResponse(jsonrpc.InvalidParams, "Invalid params", nil, req.ID)
+            }
+
             a := params["a"].(float64)
             b := params["b"].(float64)
-            return jsonrpc.NewResponse(a+b, request.ID)
+            return jsonrpc.NewResponse(a+b, req.ID)
         },
         "greet": func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-            params := req.Params.(map[string]any)
-            name := params["name"].(string)
-            return jsonrpc.NewResponse("Hello, "+name+"!", request.ID)
+            // Alternative: Parse into a specific struct
+            var params struct {
+                Name string `json:"name"`
+            }
+            if err := json.Unmarshal(req.Params, &params); err != nil {
+                return jsonrpc.NewErrorResponse(jsonrpc.InvalidParams, "Invalid params", nil, req.ID)
+            }
+
+            return jsonrpc.NewResponse("Hello, "+params.Name+"!", req.ID)
         },
     }
 
@@ -104,6 +117,150 @@ func main() {
     fmt.Println(greeting) // Output: Hello, World!
 }
 ```
+
+## Parameter Handling with json.RawMessage
+
+This library uses `json.RawMessage` for `Request.Params` and `Response.Result` fields, providing flexibility in how you handle parameters and results.
+
+### Benefits
+
+- **Type Flexibility**: Parse parameters as arrays, objects, or specific structs
+- **Performance**: Avoid unnecessary conversions when you know the expected structure
+- **Validation**: Check parameter structure before parsing
+- **Memory Efficiency**: Delay parsing until needed
+
+### Parsing Parameters
+
+#### As a Map (Dynamic)
+
+```go
+func handler(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+    var params map[string]any
+    if err := json.Unmarshal(req.Params, &params); err != nil {
+        return jsonrpc.NewErrorResponse(jsonrpc.InvalidParams, "Invalid params", nil, req.ID)
+    }
+
+    name := params["name"].(string)
+    age := int(params["age"].(float64)) // JSON numbers are float64
+
+    return jsonrpc.NewResponse(fmt.Sprintf("%s is %d years old", name, age), req.ID)
+}
+```
+
+#### As a Struct (Typed)
+
+```go
+type GreetParams struct {
+    Name string `json:"name"`
+    Age  int    `json:"age"`
+}
+
+func handler(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+    var params GreetParams
+    if err := json.Unmarshal(req.Params, &params); err != nil {
+        return jsonrpc.NewErrorResponse(jsonrpc.InvalidParams, "Invalid params", nil, req.ID)
+    }
+
+    return jsonrpc.NewResponse(fmt.Sprintf("%s is %d years old", params.Name, params.Age), req.ID)
+}
+```
+
+#### As an Array (Positional Parameters)
+
+```go
+func mathHandler(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+    var params []float64
+    if err := json.Unmarshal(req.Params, &params); err != nil {
+        return jsonrpc.NewErrorResponse(jsonrpc.InvalidParams, "Invalid params", nil, req.ID)
+    }
+
+    if len(params) < 2 {
+        return jsonrpc.NewErrorResponse(jsonrpc.InvalidParams, "Need at least 2 numbers", nil, req.ID)
+    }
+
+    return jsonrpc.NewResponse(params[0] + params[1], req.ID)
+}
+```
+
+#### Checking Parameter Type Before Parsing
+
+```go
+func flexibleHandler(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+    // Check if params is an array or object
+    if len(req.Params) > 0 && req.Params[0] == '[' {
+        // Handle array parameters
+        var params []any
+        if err := json.Unmarshal(req.Params, &params); err != nil {
+            return jsonrpc.NewErrorResponse(jsonrpc.InvalidParams, "Invalid array params", nil, req.ID)
+        }
+        // Process array...
+    } else {
+        // Handle object parameters
+        var params map[string]any
+        if err := json.Unmarshal(req.Params, &params); err != nil {
+            return jsonrpc.NewErrorResponse(jsonrpc.InvalidParams, "Invalid object params", nil, req.ID)
+        }
+        // Process object...
+    }
+
+    return jsonrpc.NewResponse("processed", req.ID)
+}
+```
+
+### Working with Results
+
+When making client calls, results are also `json.RawMessage`:
+
+```go
+// Using CallWithResult (automatic unmarshaling)
+var result string
+err := client.CallWithResult(ctx, "greet", params, &result)
+
+// Using Call (manual unmarshaling)
+resp, err := client.Call(ctx, "greet", params)
+if err != nil {
+    log.Fatal(err)
+}
+
+var result string
+if err := json.Unmarshal(resp.Result, &result); err != nil {
+    log.Fatal(err)
+}
+```
+
+### Migration from `any` to `json.RawMessage`
+
+If you're migrating from a version that used `any` for parameters:
+
+#### Before (with `any`)
+
+```go
+func handler(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+    params := req.Params.(map[string]any)  // Direct type assertion
+    name := params["name"].(string)
+    return jsonrpc.NewResponse("Hello "+name, req.ID)
+}
+```
+
+#### After (with `json.RawMessage`)
+
+```go
+func handler(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+    var params map[string]any
+    if err := json.Unmarshal(req.Params, &params); err != nil {
+        return jsonrpc.NewErrorResponse(jsonrpc.InvalidParams, "Invalid params", nil, req.ID)
+    }
+    name := params["name"].(string)
+    return jsonrpc.NewResponse("Hello "+name, req.ID)
+}
+```
+
+The new approach provides:
+
+- Better error handling for invalid parameters
+- Type safety at parse time
+- Flexibility to parse as different types
+- No runtime panics from failed type assertions
 
 ## Transport Protocols
 
@@ -187,21 +344,39 @@ defer client.Close()
 
 ```go
 func mathDivide(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-    params := req.Params.(map[string]any)
+    // Parse parameters with error handling
+    var params map[string]any
+    if err := json.Unmarshal(req.Params, &params); err != nil {
+        return jsonrpc.NewErrorResponse(
+            jsonrpc.InvalidParams,
+            "Invalid parameters",
+            "Parameters must be a JSON object",
+            req.ID,
+        )
+    }
 
-    a := params["a"].(float64)
-    b := params["b"].(float64)
+    a, ok1 := params["a"].(float64)
+    b, ok2 := params["b"].(float64)
+
+    if !ok1 || !ok2 {
+        return jsonrpc.NewErrorResponse(
+            jsonrpc.InvalidParams,
+            "Invalid parameter types",
+            "Parameters 'a' and 'b' must be numbers",
+            req.ID,
+        )
+    }
 
     if b == 0 {
         return jsonrpc.NewErrorResponse(
             jsonrpc.InvalidParams,
             "Division by zero",
             "Cannot divide by zero",
-            request.ID,
+            req.ID,
         )
     }
 
-    return jsonrpc.NewResponse(a/b, request.ID)
+    return jsonrpc.NewResponse(a/b, req.ID)
 }
 ```
 
@@ -255,11 +430,11 @@ if err != nil {
 ```go
 func loggingHandler(next jsonrpc.Handler) jsonrpc.Handler {
     return func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-        log.Printf("Calling method: %s", request.Method)
+        log.Printf("Calling method: %s", req.Method)
 
         result := next(ctx, req)
 
-        log.Printf("Method %s completed", request.Method)
+        log.Printf("Method %s completed", req.Method)
         return result
     }
 }
