@@ -3,6 +3,7 @@ package jsonrpc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -139,7 +140,7 @@ func TestUdpCodecWriteRequest(t *testing.T) {
 			request: &Request{
 				JSONRPC: "2.0",
 				Method:  "test.method",
-				Params:  map[string]any{"arg": "value"},
+				Params:  json.RawMessage(`{"arg":"value"}`),
 				ID:      123,
 			},
 			wantErr: false,
@@ -239,10 +240,11 @@ func TestUdpCodecMessageTooLarge(t *testing.T) {
 
 	// Create a request with very large params
 	largeData := strings.Repeat("x", MaxUDPPacketSize)
+	paramsJSON, _ := json.Marshal(map[string]any{"data": largeData})
 	request := &Request{
 		JSONRPC: "2.0",
 		Method:  "test.method",
-		Params:  map[string]any{"data": largeData},
+		Params:  json.RawMessage(paramsJSON),
 		ID:      123,
 	}
 
@@ -304,7 +306,7 @@ func TestUdpCodecIntegration(t *testing.T) {
 		// Send response
 		response := &Response{
 			JSONRPC: "2.0",
-			Result:  "echo: hello",
+			Result:  json.RawMessage(`"echo: hello"`),
 			ID:      req.ID,
 		}
 
@@ -336,7 +338,7 @@ func TestUdpCodecIntegration(t *testing.T) {
 	request := &Request{
 		JSONRPC: "2.0",
 		Method:  "test.echo",
-		Params:  map[string]any{"message": "hello"},
+		Params:  json.RawMessage(`{"message":"hello"}`),
 		ID:      42,
 	}
 
@@ -356,8 +358,12 @@ func TestUdpCodecIntegration(t *testing.T) {
 	}
 
 	// Verify response
-	if resp.Result != "echo: hello" {
-		t.Errorf("Expected result 'echo: hello', got %v", resp.Result)
+	var resultStr string
+	if err := json.Unmarshal(resp.Result, &resultStr); err != nil {
+		t.Fatalf("Failed to unmarshal result: %v", err)
+	}
+	if resultStr != "echo: hello" {
+		t.Errorf("Expected result 'echo: hello', got %v", resultStr)
 	}
 
 	if resp.ID.(float64) != 42 {
@@ -583,7 +589,7 @@ func TestBufferedUdpCodec(t *testing.T) {
 	testRequest := &Request{
 		JSONRPC: "2.0",
 		Method:  "test.method",
-		Params:  map[string]any{"arg": "value"},
+		Params:  json.RawMessage(`{"arg":"value"}`),
 		ID:      123,
 	}
 
@@ -624,7 +630,7 @@ func TestBufferedUdpCodec(t *testing.T) {
 		// Create test response data
 		testResponse := &Response{
 			JSONRPC: "2.0",
-			Result:  "success",
+			Result:  json.RawMessage(`"success"`),
 			ID:      123,
 		}
 
@@ -646,8 +652,13 @@ func TestBufferedUdpCodec(t *testing.T) {
 			return
 		}
 
-		if resp.Result != "success" {
-			t.Errorf("Expected result success, got %v", resp.Result)
+		var resultStr string
+		if err := json.Unmarshal(resp.Result, &resultStr); err != nil {
+			t.Errorf("Failed to unmarshal result: %v", err)
+			return
+		}
+		if resultStr != "success" {
+			t.Errorf("Expected result success, got %v", resultStr)
 		}
 
 		if resp.ID.(float64) != 123 {
@@ -774,7 +785,7 @@ func TestUdpMultipleClients(t *testing.T) {
 			request := &Request{
 				JSONRPC: "2.0",
 				Method:  "test.client",
-				Params:  map[string]any{"clientID": clientID},
+				Params:  json.RawMessage(fmt.Sprintf(`{"clientID":%d}`, clientID)),
 				ID:      clientID,
 			}
 

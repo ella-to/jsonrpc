@@ -1,9 +1,18 @@
 package jsonrpc
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 )
+
+// compareRawMessage compares two json.RawMessage values
+func compareRawMessage(a, b json.RawMessage) bool {
+	if len(a) == 0 && len(b) == 0 {
+		return true
+	}
+	return bytes.Equal(a, b)
+}
 
 func TestNewRequest(t *testing.T) {
 	tests := []struct {
@@ -21,7 +30,7 @@ func TestNewRequest(t *testing.T) {
 			expected: &Request{
 				JSONRPC: Version,
 				Method:  "test.method",
-				Params:  []any{1, 2, 3},
+				Params:  json.RawMessage(`[1,2,3]`),
 				ID:      "test-id",
 			},
 		},
@@ -33,7 +42,7 @@ func TestNewRequest(t *testing.T) {
 			expected: &Request{
 				JSONRPC: Version,
 				Method:  "math.add",
-				Params:  map[string]any{"a": 1, "b": 2},
+				Params:  json.RawMessage(`{"a":1,"b":2}`),
 				ID:      42,
 			},
 		},
@@ -62,6 +71,10 @@ func TestNewRequest(t *testing.T) {
 			}
 			if req.ID != tt.expected.ID {
 				t.Errorf("ID = %v, want %v", req.ID, tt.expected.ID)
+			}
+			// Compare params as json.RawMessage
+			if !compareRawMessage(req.Params, tt.expected.Params) {
+				t.Errorf("Params = %s, want %s", string(req.Params), string(tt.expected.Params))
 			}
 		})
 	}
@@ -102,6 +115,10 @@ func TestNewResponse(t *testing.T) {
 	if resp.Error != nil {
 		t.Errorf("Error = %v, want nil", resp.Error)
 	}
+	// Check that Result is not empty when a result was provided
+	if len(resp.Result) == 0 {
+		t.Errorf("Result is empty, want non-empty")
+	}
 }
 
 func TestNewErrorResponse(t *testing.T) {
@@ -118,8 +135,8 @@ func TestNewErrorResponse(t *testing.T) {
 	if resp.ID != id {
 		t.Errorf("ID = %v, want %v", resp.ID, id)
 	}
-	if resp.Result != nil {
-		t.Errorf("Result = %v, want nil", resp.Result)
+	if len(resp.Result) != 0 {
+		t.Errorf("Result = %s, want empty", string(resp.Result))
 	}
 	if resp.Error == nil {
 		t.Fatal("Error = nil, want non-nil")
@@ -257,7 +274,7 @@ func TestResponseValidate(t *testing.T) {
 			name: "valid response with result",
 			response: &Response{
 				JSONRPC: Version,
-				Result:  "success",
+				Result:  json.RawMessage(`"success"`),
 				ID:      1,
 			},
 			wantError: false,
@@ -275,7 +292,7 @@ func TestResponseValidate(t *testing.T) {
 			name: "invalid JSONRPC version",
 			response: &Response{
 				JSONRPC: "1.0",
-				Result:  "success",
+				Result:  json.RawMessage(`"success"`),
 				ID:      1,
 			},
 			wantError: true,
@@ -285,7 +302,7 @@ func TestResponseValidate(t *testing.T) {
 			name: "response with both result and error",
 			response: &Response{
 				JSONRPC: Version,
-				Result:  "success",
+				Result:  json.RawMessage(`"success"`),
 				Error:   &Error{Code: InternalError, Message: "Error"},
 				ID:      1,
 			},
@@ -350,7 +367,7 @@ func TestRequestJSONMarshaling(t *testing.T) {
 			request: &Request{
 				JSONRPC: Version,
 				Method:  "test.method",
-				Params:  []any{1, "test", true},
+				Params:  json.RawMessage(`[1,"test",true]`),
 				ID:      "test-id",
 			},
 		},
@@ -359,7 +376,7 @@ func TestRequestJSONMarshaling(t *testing.T) {
 			request: &Request{
 				JSONRPC: Version,
 				Method:  "notification.method",
-				Params:  map[string]any{"key": "value"},
+				Params:  json.RawMessage(`{"key":"value"}`),
 			},
 		},
 		{
@@ -430,7 +447,7 @@ func TestResponseJSONMarshaling(t *testing.T) {
 			name: "response with result",
 			response: &Response{
 				JSONRPC: Version,
-				Result:  map[string]any{"answer": 42},
+				Result:  json.RawMessage(`{"answer":42}`),
 				ID:      "test-id",
 			},
 		},

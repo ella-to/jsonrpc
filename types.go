@@ -1,6 +1,7 @@
 package jsonrpc
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
@@ -18,18 +19,18 @@ const (
 
 // Request represents a JSON-RPC 2.0 request
 type Request struct {
-	JSONRPC string `json:"jsonrpc"`
-	Method  string `json:"method"`
-	Params  any    `json:"params,omitempty"`
-	ID      any    `json:"id,omitempty"`
+	JSONRPC string          `json:"jsonrpc"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params,omitempty"`
+	ID      any             `json:"id,omitempty"`
 }
 
 // Response represents a JSON-RPC 2.0 response
 type Response struct {
-	JSONRPC string `json:"jsonrpc"`
-	Result  any    `json:"result,omitempty"`
-	Error   *Error `json:"error,omitempty"`
-	ID      any    `json:"id"`
+	JSONRPC string          `json:"jsonrpc"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   *Error          `json:"error,omitempty"`
+	ID      any             `json:"id"`
 }
 
 // Error represents a JSON-RPC 2.0 error
@@ -46,28 +47,64 @@ func (e *Error) Error() string {
 
 // NewRequest creates a new JSON-RPC request
 func NewRequest(method string, params any, id any) *Request {
+	var rawParams json.RawMessage
+	if params != nil {
+		if raw, ok := params.(json.RawMessage); ok {
+			rawParams = raw
+		} else {
+			// Marshal params to json.RawMessage
+			if data, err := json.Marshal(params); err == nil {
+				rawParams = data
+			}
+		}
+	}
+
 	return &Request{
 		JSONRPC: Version,
 		Method:  method,
-		Params:  params,
+		Params:  rawParams,
 		ID:      id,
 	}
 }
 
 // NewNotification creates a new JSON-RPC notification (request without ID)
 func NewNotification(method string, params any) *Request {
+	var rawParams json.RawMessage
+	if params != nil {
+		if raw, ok := params.(json.RawMessage); ok {
+			rawParams = raw
+		} else {
+			// Marshal params to json.RawMessage
+			if data, err := json.Marshal(params); err == nil {
+				rawParams = data
+			}
+		}
+	}
+
 	return &Request{
 		JSONRPC: Version,
 		Method:  method,
-		Params:  params,
+		Params:  rawParams,
 	}
 }
 
 // NewResponse creates a new JSON-RPC response
 func NewResponse(result any, id any) *Response {
+	var rawResult json.RawMessage
+	if result != nil {
+		if raw, ok := result.(json.RawMessage); ok {
+			rawResult = raw
+		} else {
+			// Marshal result to json.RawMessage
+			if data, err := json.Marshal(result); err == nil {
+				rawResult = data
+			}
+		}
+	}
+
 	return &Response{
 		JSONRPC: Version,
-		Result:  result,
+		Result:  rawResult,
 		ID:      id,
 	}
 }
@@ -115,13 +152,13 @@ func (r *Response) Validate() error {
 			Message: "Invalid JSON-RPC version",
 		}
 	}
-	if r.Result == nil && r.Error == nil {
+	if len(r.Result) == 0 && r.Error == nil {
 		return &Error{
 			Code:    InvalidRequest,
 			Message: "Response must have either result or error",
 		}
 	}
-	if r.Result != nil && r.Error != nil {
+	if len(r.Result) > 0 && r.Error != nil {
 		return &Error{
 			Code:    InvalidRequest,
 			Message: "Response cannot have both result and error",

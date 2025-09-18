@@ -6,7 +6,10 @@
 //
 //	handlers := map[string]Handler{
 //	    "greet": func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-//	        params := req.Params.(map[string]any)
+//	        var params map[string]any
+//	        if err := json.Unmarshal(req.Params, &params); err != nil {
+//	            return NewErrorResponse(jsonrpc.InvalidParams, "Invalid params", nil, req.ID)
+//	        }
 //	        name := params["name"].(string)
 //	        return NewResponse("Hello "+name, req.ID)
 //	    },

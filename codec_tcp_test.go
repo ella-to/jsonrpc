@@ -2,6 +2,7 @@ package jsonrpc
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"strings"
 	"testing"
@@ -87,7 +88,7 @@ func TestCodecWriteRequest(t *testing.T) {
 			request: &Request{
 				JSONRPC: "2.0",
 				Method:  "test.method",
-				Params:  map[string]any{"arg": "value"},
+				Params:  json.RawMessage(`{"arg":"value"}`),
 				ID:      123,
 			},
 			wantErr:  false,
@@ -190,7 +191,7 @@ func TestCodecWriteResponse(t *testing.T) {
 			name: "valid response",
 			response: &Response{
 				JSONRPC: "2.0",
-				Result:  "success",
+				Result:  json.RawMessage(`"success"`),
 				ID:      123,
 			},
 			wantErr:  false,

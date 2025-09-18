@@ -115,7 +115,7 @@ func (c *Client) CallWithResult(ctx context.Context, method string, params any, 
 		return resp.Error
 	}
 
-	if result != nil && resp.Result != nil {
+	if result != nil && len(resp.Result) > 0 {
 		// If result is provided, unmarshal the response result
 		return unmarshalResult(resp.Result, result)
 	}
@@ -213,8 +213,8 @@ func NewSimpleClient(transport string) (*Client, error) {
 }
 
 // unmarshalResult unmarshals a JSON result into the target variable
-func unmarshalResult(source, target any) error {
-	if source == nil {
+func unmarshalResult(source json.RawMessage, target any) error {
+	if len(source) == 0 {
 		return nil
 	}
 
@@ -222,15 +222,9 @@ func unmarshalResult(source, target any) error {
 		return fmt.Errorf("target cannot be nil")
 	}
 
-	// Convert source to JSON bytes then unmarshal to target
-	// This handles the case where source is map[string]any from JSON
-	jsonBytes, err := json.Marshal(source)
-	if err != nil {
-		return fmt.Errorf("failed to marshal source: %w", err)
-	}
-
-	if err := json.Unmarshal(jsonBytes, target); err != nil {
-		return fmt.Errorf("failed to unmarshal into target: %w", err)
+	// Directly unmarshal the json.RawMessage to target
+	if err := json.Unmarshal(source, target); err != nil {
+		return fmt.Errorf("failed to unmarshal result: %w", err)
 	}
 
 	return nil

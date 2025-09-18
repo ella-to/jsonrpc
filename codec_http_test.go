@@ -3,6 +3,7 @@ package jsonrpc
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -92,7 +93,7 @@ func TestHttpCodecWriteRequest(t *testing.T) {
 			request: &Request{
 				JSONRPC: "2.0",
 				Method:  "test.method",
-				Params:  map[string]any{"arg": "value"},
+				Params:  json.RawMessage(`{"arg":"value"}`),
 				ID:      123,
 			},
 			wantErr:   false,
@@ -223,7 +224,7 @@ func TestHttpCodecWriteResponse(t *testing.T) {
 			name: "valid response",
 			response: &Response{
 				JSONRPC: "2.0",
-				Result:  "success",
+				Result:  json.RawMessage(`"success"`),
 				ID:      123,
 			},
 			wantErr: false,
@@ -232,7 +233,7 @@ func TestHttpCodecWriteResponse(t *testing.T) {
 			name: "no response writer",
 			response: &Response{
 				JSONRPC: "2.0",
-				Result:  "test",
+				Result:  json.RawMessage(`"test"`),
 				ID:      1,
 			},
 			wantErr: true,
@@ -606,8 +607,8 @@ func TestIntegrationHTTPClientServer(t *testing.T) {
 	// Create a test handler
 	handlers := map[string]Handler{
 		"test.add": func(ctx context.Context, req *Request) *Response {
-			params, ok := req.Params.(map[string]any)
-			if !ok {
+			var params map[string]any
+			if err := json.Unmarshal(req.Params, &params); err != nil {
 				return NewErrorResponse(InvalidParams, "Invalid params", nil, req.ID)
 			}
 
@@ -671,7 +672,7 @@ func TestIntegrationHTTPClientServer(t *testing.T) {
 	request := &Request{
 		JSONRPC: "2.0",
 		Method:  "test.add",
-		Params:  map[string]any{"a": 5, "b": 3},
+		Params:  json.RawMessage(`{"a":5,"b":3}`),
 		ID:      123,
 	}
 
@@ -686,8 +687,14 @@ func TestIntegrationHTTPClientServer(t *testing.T) {
 		t.Fatalf("Failed to read response: %v", err)
 	}
 
-	if resp.Result != 8.0 {
-		t.Errorf("Expected result 8, got %v", resp.Result)
+	// Unmarshal result to check value
+	var result float64
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		t.Fatalf("Failed to unmarshal result: %v", err)
+	}
+
+	if result != 8.0 {
+		t.Errorf("Expected result 8, got %v", result)
 	}
 
 	if resp.ID.(float64) != 123 {

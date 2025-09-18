@@ -26,9 +26,14 @@
 //	        }
 //
 //	        // Process request and create response
+//	        var params map[string]any
+//	        if err := json.Unmarshal(req.Params, &params); err != nil {
+//	            // Handle error
+//	            return
+//	        }
 //	        resp := &Response{
 //	            JSONRPC: "2.0",
-//	            Result:  "Hello " + req.Params.(map[string]any)["name"].(string),
+//	            Result:  json.RawMessage(`"Hello ` + params["name"].(string) + `"`),
 //	            ID:      req.ID,
 //	        }
 //

@@ -1,7 +1,9 @@
 package jsonrpc
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -260,7 +262,7 @@ func TestClientCall(t *testing.T) {
 			connected: true,
 			response: &Response{
 				JSONRPC: Version,
-				Result:  "success",
+				Result:  json.RawMessage(`"success"`),
 				ID:      int64(1),
 			},
 			expectError: false,
@@ -290,7 +292,7 @@ func TestClientCall(t *testing.T) {
 			connected: true,
 			response: &Response{
 				JSONRPC: Version,
-				Result:  "success",
+				Result:  json.RawMessage(`"success"`),
 				ID:      int64(999), // Wrong ID
 			},
 			expectError: true,
@@ -338,8 +340,8 @@ func TestClientCall(t *testing.T) {
 				if resp == nil {
 					t.Error("Response should not be nil on success")
 				}
-				if resp != nil && resp.Result != tt.response.Result {
-					t.Errorf("Result = %v, want %v", resp.Result, tt.response.Result)
+				if resp != nil && !bytes.Equal(resp.Result, tt.response.Result) {
+					t.Errorf("Result = %s, want %s", string(resp.Result), string(tt.response.Result))
 				}
 			}
 		})
@@ -431,7 +433,7 @@ func TestClientCallWithResult(t *testing.T) {
 			name: "successful call with result",
 			response: &Response{
 				JSONRPC: Version,
-				Result:  map[string]any{"name": "test", "value": 42},
+				Result:  json.RawMessage(`{"name":"test","value":42}`),
 				ID:      int64(1),
 			},
 			expectError:  false,
@@ -553,9 +555,10 @@ func TestClientConcurrency(t *testing.T) {
 	// Add generic responses that will be read in order
 	// The actual ID matching is tested in other tests
 	for i := 0; i < 10; i++ {
+		result, _ := json.Marshal(i)
 		mockCodec.AddResponse(&Response{
 			JSONRPC: Version,
-			Result:  i,
+			Result:  json.RawMessage(result),
 			ID:      int64(i + 1), // This won't match exactly due to concurrency, but that's ok for this test
 		})
 	}
@@ -600,14 +603,14 @@ func TestClientConcurrency(t *testing.T) {
 func TestUnmarshalResult(t *testing.T) {
 	tests := []struct {
 		name        string
-		source      any
+		source      json.RawMessage
 		target      any
 		expectError bool
 		validate    func(t *testing.T, target any)
 	}{
 		{
 			name:   "unmarshal map to struct",
-			source: map[string]any{"name": "test", "value": 42},
+			source: json.RawMessage(`{"name":"test","value":42}`),
 			target: &struct {
 				Name  string `json:"name"`
 				Value int    `json:"value"`
@@ -634,7 +637,7 @@ func TestUnmarshalResult(t *testing.T) {
 		},
 		{
 			name:        "nil target",
-			source:      map[string]any{"test": "value"},
+			source:      json.RawMessage(`{"test":"value"}`),
 			target:      nil,
 			expectError: true,
 		},

@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -28,13 +29,19 @@ func main() {
 func startServer() {
 	handlers := map[string]jsonrpc.Handler{
 		"math.add": func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-			params := req.Params.(map[string]any)
+			var params map[string]any
+			if err := json.Unmarshal(req.Params, &params); err != nil {
+				return jsonrpc.NewErrorResponse(jsonrpc.InvalidParams, "Invalid params", nil, req.ID)
+			}
 			a := params["a"].(float64)
 			b := params["b"].(float64)
 			return jsonrpc.NewResponse(a+b, req.ID)
 		},
 		"greet": func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-			params := req.Params.(map[string]any)
+			var params map[string]any
+			if err := json.Unmarshal(req.Params, &params); err != nil {
+				return jsonrpc.NewErrorResponse(jsonrpc.InvalidParams, "Invalid params", nil, req.ID)
+			}
 			name := params["name"].(string)
 			return jsonrpc.NewResponse("Hello, "+name+"!", req.ID)
 		},
@@ -81,7 +88,13 @@ func runClient() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("10 + 20 = %.0f\n", response.Result.(float64))
+
+	// Unmarshal the result from json.RawMessage
+	var rawResult float64
+	if err := json.Unmarshal(response.Result, &rawResult); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("10 + 20 = %.0f\n", rawResult)
 
 	fmt.Println("Examples completed successfully!")
 }
