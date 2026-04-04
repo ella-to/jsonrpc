@@ -19,7 +19,7 @@
 ## Installation
 
 ```bash
-go get ella.to/jsonrpc
+go get ella.to/jsonrpc@v0.0.2
 ```
 
 ## Overview
