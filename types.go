@@ -12,6 +12,9 @@ import (
 	"github.com/rs/xid"
 )
 
+// LibVersion represents the current version of the jsonrpc library.
+const LibVersion = "0.0.3"
+
 // Version represents the JSON-RPC protocol version supported by this package.
 const Version = "2.0"
 
