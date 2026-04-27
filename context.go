@@ -69,6 +69,19 @@ func (p *DefaultContextPropagator) Inject(ctx context.Context, metadata map[stri
 	return ctx
 }
 
+// ContextKeyFor returns the context key used internally for the given string
+// key. Pass the returned value to slogx.FilterHandler.SetTraceIDKey so the
+// log filter can read values that this package injects into the context via
+// ContextPropagator.Inject.
+//
+// Example:
+//
+//	propagator := jsonrpc.NewDefaultContextPropagator("trace-id")
+//	filter.SetTraceIDKey(jsonrpc.ContextKeyFor("trace-id"))
+func ContextKeyFor(key string) any {
+	return contextKey(key)
+}
+
 // WithContextValue is a helper function to add a value to the context using a string key.
 // This is useful for setting values that will be propagated via ContextPropagator.
 func WithContextValue(ctx context.Context, key, value string) context.Context {
