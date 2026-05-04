@@ -3,11 +3,12 @@ package jsonrpc
 import (
 	"bytes"
 	"context"
-	"ella.to/slogx"
 	"encoding/json"
 	"errors"
 	"io"
 	"sync"
+
+	"ella.to/slogx"
 )
 
 // Server processes JSON-RPC requests over an io.ReadWriteCloser transport.

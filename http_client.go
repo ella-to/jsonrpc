@@ -3,12 +3,13 @@ package jsonrpc
 import (
 	"bytes"
 	"context"
-	"ella.to/slogx"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+
+	"ella.to/slogx"
 )
 
 // HTTPClient issues JSON-RPC requests over HTTP.

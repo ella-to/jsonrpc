@@ -3,12 +3,13 @@ package jsonrpc
 import (
 	"bytes"
 	"context"
-	"ella.to/slogx"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"sync"
+
+	"ella.to/slogx"
 )
 
 // RawClient implements a JSON-RPC 2.0 client over an io.ReadWriteCloser transport.

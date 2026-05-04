@@ -14,7 +14,6 @@ func TestHTTPClientCall(t *testing.T) {
 	reqCh := make(chan jsonrpc.Request, 1)
 
 	handler := jsonrpc.HTTPHandler(jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
 		reqCh <- *req
 		return req.CreateResponse(map[string]string{"message": "pong"})
 	}))

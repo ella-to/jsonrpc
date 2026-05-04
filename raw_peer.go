@@ -3,12 +3,13 @@ package jsonrpc
 import (
 	"bytes"
 	"context"
-	"ella.to/slogx"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"sync"
+
+	"ella.to/slogx"
 )
 
 // RawPeer implements a bidirectional JSON-RPC 2.0 peer that can both send
@@ -37,7 +38,6 @@ var _ Caller = (*RawPeer)(nil)
 func NewRawPeer(rwc io.ReadWriteCloser, handler Handler) *RawPeer {
 	if handler == nil {
 		handler = HandlerFunc(func(ctx context.Context, req *Request) *Response {
-			ctx = slogx.Context(ctx)
 			return req.CreateErrorResponse(NewError(MethodNotFound, "no handler"))
 		})
 	}

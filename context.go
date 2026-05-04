@@ -2,8 +2,9 @@ package jsonrpc
 
 import (
 	"context"
-	"ella.to/slogx"
 	"encoding/json"
+
+	"ella.to/slogx"
 )
 
 // contextKey is the type for context keys used in context propagation
