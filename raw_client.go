@@ -3,6 +3,7 @@ package jsonrpc
 import (
 	"bytes"
 	"context"
+	"ella.to/slogx"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -65,6 +66,7 @@ func NewRawClient(rwc io.ReadWriteCloser, opts ...RawClientOpt) *RawClient {
 // Responses are aligned with the order of the supplied requests, and notifications
 // (requests without an id) yield nil entries in the returned slice.
 func (c *RawClient) Call(ctx context.Context, requests ...*Request) ([]*Response, error) {
+	ctx = slogx.Context(ctx)
 	if len(requests) == 0 {
 		return nil, nil
 	}
@@ -215,6 +217,7 @@ func (c *RawClient) readLoop() {
 }
 
 func (c *RawClient) sendRequests(ctx context.Context, requests []*Request) error {
+	ctx = slogx.Context(ctx)
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 

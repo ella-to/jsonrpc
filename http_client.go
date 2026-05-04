@@ -3,6 +3,7 @@ package jsonrpc
 import (
 	"bytes"
 	"context"
+	"ella.to/slogx"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -68,6 +69,7 @@ func (c *HTTPClient) WithHeader(key, value string) *HTTPClient {
 // aligned with the order of the supplied requests, and notifications (requests without
 // an id) yield nil entries in the returned slice.
 func (c *HTTPClient) Call(ctx context.Context, requests ...*Request) ([]*Response, error) {
+	ctx = slogx.Context(ctx)
 	if c == nil {
 		return nil, fmt.Errorf("jsonrpc2: HTTPClient is nil")
 	}
@@ -170,6 +172,7 @@ func (c *HTTPClient) Call(ctx context.Context, requests ...*Request) ([]*Respons
 }
 
 func (c *HTTPClient) send(ctx context.Context, requests []*Request) ([]byte, int, error) {
+	ctx = slogx.Context(ctx)
 	data, err := json.Marshal(requests)
 	if err != nil {
 		return nil, 0, err

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 
+	"ella.to/slogx"
 	"github.com/rs/xid"
 )
 
@@ -245,6 +246,7 @@ type HandlerFunc func(ctx context.Context, req *Request) *Response
 
 // Handle dispatches the request to f.
 func (f HandlerFunc) Handle(ctx context.Context, req *Request) *Response {
+	ctx = slogx.Context(ctx)
 	return f(ctx, req)
 }
 

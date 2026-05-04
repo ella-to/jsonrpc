@@ -2,6 +2,7 @@ package jsonrpc
 
 import (
 	"context"
+	"ella.to/slogx"
 	"encoding/json"
 )
 
@@ -38,6 +39,7 @@ func NewDefaultContextPropagator(keys ...string) *DefaultContextPropagator {
 
 // Extract retrieves values for the registered keys from the context.
 func (p *DefaultContextPropagator) Extract(ctx context.Context) map[string]string {
+	ctx = slogx.Context(ctx)
 	if ctx == nil || len(p.keys) == 0 {
 		return nil
 	}
@@ -59,6 +61,7 @@ func (p *DefaultContextPropagator) Extract(ctx context.Context) map[string]strin
 
 // Inject adds the propagated metadata back into the context.
 func (p *DefaultContextPropagator) Inject(ctx context.Context, metadata map[string]string) context.Context {
+	ctx = slogx.Context(ctx)
 	if len(metadata) == 0 {
 		return ctx
 	}
@@ -85,12 +88,14 @@ func ContextKeyFor(key string) any {
 // WithContextValue is a helper function to add a value to the context using a string key.
 // This is useful for setting values that will be propagated via ContextPropagator.
 func WithContextValue(ctx context.Context, key, value string) context.Context {
+	ctx = slogx.Context(ctx)
 	return context.WithValue(ctx, contextKey(key), value)
 }
 
 // ContextValue retrieves a value from the context using a string key.
 // This is the counterpart to WithContextValue.
 func ContextValue(ctx context.Context, key string) (string, bool) {
+	ctx = slogx.Context(ctx)
 	val := ctx.Value(contextKey(key))
 	if val == nil {
 		return "", false

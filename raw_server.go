@@ -3,6 +3,7 @@ package jsonrpc
 import (
 	"bytes"
 	"context"
+	"ella.to/slogx"
 	"encoding/json"
 	"errors"
 	"io"
@@ -58,6 +59,7 @@ func NewRawServer(rwc io.ReadWriteCloser, handler Handler, opts ...RawServerOpt)
 // can run concurrently. The returned error is nil when the peer closes the
 // connection cleanly.
 func (s *RawServer) Serve(ctx context.Context) error {
+	ctx = slogx.Context(ctx)
 	for {
 		select {
 		case <-ctx.Done():
@@ -149,6 +151,7 @@ func (s *RawServer) CloseError() error {
 }
 
 func (s *RawServer) handleRequest(ctx context.Context, req *Request) *Response {
+	ctx = slogx.Context(ctx)
 	if req.Method == "" {
 		return s.errorResponse(req.ID, InvalidRequest, "method is required", nil)
 	}
@@ -166,6 +169,7 @@ func (s *RawServer) handleRequest(ctx context.Context, req *Request) *Response {
 }
 
 func (s *RawServer) handleBatch(ctx context.Context, raw json.RawMessage) {
+	ctx = slogx.Context(ctx)
 	var entries []json.RawMessage
 	if err := json.Unmarshal(raw, &entries); err != nil {
 		s.sendResponse(s.errorResponseWithNull(InvalidRequest, "invalid request", err))

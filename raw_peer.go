@@ -3,6 +3,7 @@ package jsonrpc
 import (
 	"bytes"
 	"context"
+	"ella.to/slogx"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,6 +37,7 @@ var _ Caller = (*RawPeer)(nil)
 func NewRawPeer(rwc io.ReadWriteCloser, handler Handler) *RawPeer {
 	if handler == nil {
 		handler = HandlerFunc(func(ctx context.Context, req *Request) *Response {
+			ctx = slogx.Context(ctx)
 			return req.CreateErrorResponse(NewError(MethodNotFound, "no handler"))
 		})
 	}
@@ -62,6 +64,7 @@ func (p *RawPeer) SetHandler(handler Handler) {
 // outgoing calls. Serve blocks until the context is canceled or the connection
 // is closed. It is safe to call Call from within a handler.
 func (p *RawPeer) Serve(ctx context.Context) error {
+	ctx = slogx.Context(ctx)
 	for {
 		select {
 		case <-ctx.Done():
@@ -162,6 +165,7 @@ func (p *RawPeer) classifyMessage(raw json.RawMessage) messageType {
 // Notifications (requests without an ID) will have nil entries in the returned
 // slice. It is safe to call this from within a request handler.
 func (p *RawPeer) Call(ctx context.Context, requests ...*Request) ([]*Response, error) {
+	ctx = slogx.Context(ctx)
 	if len(requests) == 0 {
 		return nil, nil
 	}
@@ -274,6 +278,7 @@ func (p *RawPeer) CloseError() error {
 }
 
 func (p *RawPeer) handleRequest(ctx context.Context, req *Request) {
+	ctx = slogx.Context(ctx)
 	if req.Method == "" {
 		p.sendResponse(&Response{
 			JSONRPC: Version,
@@ -304,6 +309,7 @@ func (p *RawPeer) handleRequest(ctx context.Context, req *Request) {
 }
 
 func (p *RawPeer) handleBatch(ctx context.Context, raw json.RawMessage) {
+	ctx = slogx.Context(ctx)
 	var entries []json.RawMessage
 	if err := json.Unmarshal(raw, &entries); err != nil {
 		p.sendResponse(&Response{
@@ -367,6 +373,7 @@ func (p *RawPeer) handleBatchRequests(ctx context.Context, entries []json.RawMes
 	raw json.RawMessage
 },
 ) {
+	ctx = slogx.Context(ctx)
 	type batchResult struct {
 		idx  int
 		resp *Response

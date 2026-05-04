@@ -7,12 +7,14 @@ import (
 	"testing"
 
 	"ella.to/jsonrpc"
+	"ella.to/slogx"
 )
 
 func TestHTTPClientCall(t *testing.T) {
 	reqCh := make(chan jsonrpc.Request, 1)
 
 	handler := jsonrpc.HTTPHandler(jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+		ctx = slogx.Context(ctx)
 		reqCh <- *req
 		return req.CreateResponse(map[string]string{"message": "pong"})
 	}))
@@ -69,6 +71,7 @@ func TestHTTPClientNotify(t *testing.T) {
 	notifyCh := make(chan jsonrpc.Request, 1)
 
 	handler := jsonrpc.HTTPHandler(jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+		ctx = slogx.Context(ctx)
 		notifyCh <- *req
 		return nil
 	}))
@@ -110,6 +113,7 @@ func TestHTTPClientBatch(t *testing.T) {
 	reqCh := make(chan jsonrpc.Request, 4)
 
 	handler := jsonrpc.HTTPHandler(jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+		ctx = slogx.Context(ctx)
 		reqCh <- *req
 		switch req.Method {
 		case "first", "second":

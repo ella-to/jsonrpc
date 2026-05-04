@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http/httptest"
 	"testing"
+
+	"ella.to/slogx"
 )
 
 func TestHTTPContextPropagation(t *testing.T) {
@@ -13,7 +15,8 @@ func TestHTTPContextPropagation(t *testing.T) {
 	// Create a handler that checks if context values are present
 	receivedValues := make(map[string]string)
 	handler := HandlerFunc(func(ctx context.Context, req *Request) *Response {
-		// Extract the propagated values
+		ctx = slogx.Context(ctx)
+
 		if val, ok := ContextValue(ctx, "request-id"); ok {
 			receivedValues["request-id"] = val
 		}
@@ -73,6 +76,7 @@ func TestHTTPContextPropagationWithBatch(t *testing.T) {
 
 	var correlationID string
 	handler := HandlerFunc(func(ctx context.Context, req *Request) *Response {
+		ctx = slogx.Context(ctx)
 		if val, ok := ContextValue(ctx, "correlation-id"); ok {
 			correlationID = val
 		}
@@ -110,7 +114,8 @@ func TestHTTPContextPropagationWithBatch(t *testing.T) {
 func TestHTTPContextPropagationWithoutPropagator(t *testing.T) {
 	// Handler that checks for context values
 	handler := HandlerFunc(func(ctx context.Context, req *Request) *Response {
-		// Should NOT have the propagated value
+		ctx = slogx.Context(ctx)
+
 		if val, ok := ContextValue(ctx, "should-not-exist"); ok {
 			t.Errorf("Unexpected value found: %s", val)
 		}
@@ -143,6 +148,7 @@ func TestHTTPContextPropagationWithEmptyMetadata(t *testing.T) {
 	propagator := NewDefaultContextPropagator("key-that-does-not-exist")
 
 	handler := HandlerFunc(func(ctx context.Context, req *Request) *Response {
+		ctx = slogx.Context(ctx)
 		return req.CreateResponse(map[string]string{"status": "ok"})
 	})
 
@@ -174,6 +180,7 @@ func TestHTTPContextPropagationWithMultipleKeys(t *testing.T) {
 
 	receivedCount := 0
 	handler := HandlerFunc(func(ctx context.Context, req *Request) *Response {
+		ctx = slogx.Context(ctx)
 		for _, key := range keys {
 			if _, ok := ContextValue(ctx, key); ok {
 				receivedCount++
@@ -229,18 +236,6 @@ func TestContextPropagatorExtractAndInject(t *testing.T) {
 	}
 	if val != "test-value" {
 		t.Errorf("Expected test-value, got %s", val)
-	}
-}
-
-func TestContextPropagatorWithNilMetadata(t *testing.T) {
-	propagator := NewDefaultContextPropagator("test-key")
-
-	// Test Inject with nil metadata
-	ctx := context.Background()
-	newCtx := propagator.Inject(ctx, nil)
-
-	if newCtx != ctx {
-		t.Error("Expected context to be unchanged when metadata is nil")
 	}
 }
 

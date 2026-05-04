@@ -3,6 +3,7 @@ package jsonrpc
 import (
 	"bytes"
 	"context"
+	"ella.to/slogx"
 	"encoding/json"
 	"errors"
 	"io"
@@ -19,10 +20,12 @@ const (
 )
 
 func injectHttpResp(ctx context.Context, w http.ResponseWriter) context.Context {
+	ctx = slogx.Context(ctx)
 	return context.WithValue(ctx, httpCtxKeyResp, w)
 }
 
 func HttpRespFromContext(ctx context.Context) http.ResponseWriter {
+	ctx = slogx.Context(ctx)
 	val := ctx.Value(httpCtxKeyResp)
 	resp, ok := val.(http.ResponseWriter)
 	if !ok {
@@ -131,6 +134,7 @@ func (s *httpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *httpServer) handleBatch(ctx context.Context, w http.ResponseWriter, raw json.RawMessage) {
+	ctx = slogx.Context(ctx)
 	var entries []json.RawMessage
 	if err := json.Unmarshal(raw, &entries); err != nil {
 		s.writeJSON(w, s.errorResponseWithNull(InvalidRequest, "invalid request", err))
@@ -163,6 +167,7 @@ func (s *httpServer) handleBatch(ctx context.Context, w http.ResponseWriter, raw
 }
 
 func (s *httpServer) handleRequest(ctx context.Context, req *Request) *Response {
+	ctx = slogx.Context(ctx)
 	if req.Method == "" {
 		return s.errorResponse(req.ID, InvalidRequest, "method is required", nil)
 	}
