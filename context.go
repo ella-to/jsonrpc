@@ -3,8 +3,6 @@ package jsonrpc
 import (
 	"context"
 	"encoding/json"
-
-	"ella.to/slogx"
 )
 
 // contextKey is the type for context keys used in context propagation
@@ -40,7 +38,6 @@ func NewDefaultContextPropagator(keys ...string) *DefaultContextPropagator {
 
 // Extract retrieves values for the registered keys from the context.
 func (p *DefaultContextPropagator) Extract(ctx context.Context) map[string]string {
-	ctx = slogx.Context(ctx)
 	if ctx == nil || len(p.keys) == 0 {
 		return nil
 	}
@@ -62,7 +59,6 @@ func (p *DefaultContextPropagator) Extract(ctx context.Context) map[string]strin
 
 // Inject adds the propagated metadata back into the context.
 func (p *DefaultContextPropagator) Inject(ctx context.Context, metadata map[string]string) context.Context {
-	ctx = slogx.Context(ctx)
 	if len(metadata) == 0 {
 		return ctx
 	}
@@ -74,14 +70,19 @@ func (p *DefaultContextPropagator) Inject(ctx context.Context, metadata map[stri
 }
 
 // ContextKeyFor returns the context key used internally for the given string
-// key. Pass the returned value to slogx.FilterHandler.SetTraceIDKey so the
-// log filter can read values that this package injects into the context via
-// ContextPropagator.Inject.
+// key. The same key may be used to read values that this package injects
+// into the context via ContextPropagator.Inject.
+//
+// For trace propagation specifically, prefer ella.to/otel/oteljsonrpc which
+// provides a ContextPropagator that serializes W3C TraceContext + Baggage
+// into the metadata map used by both the HTTP and raw transports.
 //
 // Example:
 //
 //	propagator := jsonrpc.NewDefaultContextPropagator("trace-id")
-//	filter.SetTraceIDKey(jsonrpc.ContextKeyFor("trace-id"))
+//	srv := jsonrpc.NewRawServer(conn, h, jsonrpc.WithContextPropagation(propagator))
+//	// inside a handler:
+//	val := ctx.Value(jsonrpc.ContextKeyFor("trace-id"))
 func ContextKeyFor(key string) any {
 	return contextKey(key)
 }
@@ -89,14 +90,12 @@ func ContextKeyFor(key string) any {
 // WithContextValue is a helper function to add a value to the context using a string key.
 // This is useful for setting values that will be propagated via ContextPropagator.
 func WithContextValue(ctx context.Context, key, value string) context.Context {
-	ctx = slogx.Context(ctx)
 	return context.WithValue(ctx, contextKey(key), value)
 }
 
 // ContextValue retrieves a value from the context using a string key.
 // This is the counterpart to WithContextValue.
 func ContextValue(ctx context.Context, key string) (string, bool) {
-	ctx = slogx.Context(ctx)
 	val := ctx.Value(contextKey(key))
 	if val == nil {
 		return "", false

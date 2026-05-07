@@ -7,8 +7,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"ella.to/slogx"
 )
 
 func TestRawContextPropagation(t *testing.T) {
@@ -18,7 +16,6 @@ func TestRawContextPropagation(t *testing.T) {
 	// Create a handler that checks if context values are present
 	var receivedValues sync.Map
 	handler := HandlerFunc(func(ctx context.Context, req *Request) *Response {
-		ctx = slogx.Context(ctx)
 		if val, ok := ContextValue(ctx, "request-id"); ok {
 			receivedValues.Store("request-id", val)
 		}
@@ -96,7 +93,6 @@ func TestRawContextPropagationWithBatch(t *testing.T) {
 	var mu sync.Mutex
 
 	handler := HandlerFunc(func(ctx context.Context, req *Request) *Response {
-		ctx = slogx.Context(ctx)
 		mu.Lock()
 		callCount++
 		mu.Unlock()
@@ -166,8 +162,7 @@ func TestRawContextPropagationWithBatch(t *testing.T) {
 func TestRawContextPropagationWithoutPropagator(t *testing.T) {
 	// Handler that checks for context values
 	handler := HandlerFunc(func(ctx context.Context, req *Request) *Response {
-		ctx = slogx.Context(ctx)
-
+		// Should NOT have the propagated value when propagator is not set
 		if val, ok := ContextValue(ctx, "should-not-exist"); ok {
 			t.Errorf("Unexpected value found: %s", val)
 		}
@@ -218,7 +213,6 @@ func TestRawContextPropagationMultipleRequests(t *testing.T) {
 	var receivedTraces sync.Map
 
 	handler := HandlerFunc(func(ctx context.Context, req *Request) *Response {
-		ctx = slogx.Context(ctx)
 		if val, ok := ContextValue(ctx, "trace-id"); ok {
 			receivedTraces.Store(req.Method, val)
 		}
@@ -287,7 +281,6 @@ func TestRawContextPropagationWithNotification(t *testing.T) {
 	var mu sync.Mutex
 
 	handler := HandlerFunc(func(ctx context.Context, req *Request) *Response {
-		ctx = slogx.Context(ctx)
 		if val, ok := ContextValue(ctx, "notification-id"); ok {
 			mu.Lock()
 			receivedID = val
@@ -347,7 +340,6 @@ func TestRawContextPropagationEdgeCases(t *testing.T) {
 		propagator := NewDefaultContextPropagator("non-existent-key")
 
 		handler := HandlerFunc(func(ctx context.Context, req *Request) *Response {
-			ctx = slogx.Context(ctx)
 			return req.CreateResponse(nil)
 		})
 
@@ -469,7 +461,6 @@ func TestRawContextPropagationConcurrent(t *testing.T) {
 
 	var receivedIDs sync.Map
 	handler := HandlerFunc(func(ctx context.Context, req *Request) *Response {
-		ctx = slogx.Context(ctx)
 		if val, ok := ContextValue(ctx, "worker-id"); ok {
 			receivedIDs.Store(req.Method, val)
 		}
