@@ -7,8 +7,6 @@ import (
 	"errors"
 	"io"
 	"sync"
-
-	"ella.to/slogx"
 )
 
 // Server processes JSON-RPC requests over an io.ReadWriteCloser transport.
@@ -60,7 +58,6 @@ func NewRawServer(rwc io.ReadWriteCloser, handler Handler, opts ...RawServerOpt)
 // can run concurrently. The returned error is nil when the peer closes the
 // connection cleanly.
 func (s *RawServer) Serve(ctx context.Context) error {
-	ctx = slogx.Context(ctx)
 	for {
 		select {
 		case <-ctx.Done():
@@ -87,9 +84,12 @@ func (s *RawServer) Serve(ctx context.Context) error {
 			continue
 		}
 
+		// Scope injected metadata to this message so it does not leak into
+		// subsequent messages on the same connection.
+		msgCtx := ctx
+
 		// Try to extract metadata if context propagation is enabled
-		var metadata map[string]string
-		if s.contextPropagator != nil {
+		if s.contextPropagator != nil && raw[0] == '{' {
 			// Try to unwrap as a metadata wrapper
 			var wrapper struct {
 				Requests []json.RawMessage `json:"requests"`
@@ -97,19 +97,16 @@ func (s *RawServer) Serve(ctx context.Context) error {
 			}
 			if err := json.Unmarshal(raw, &wrapper); err == nil && len(wrapper.Requests) > 0 {
 				// This is a wrapped batch request with metadata
-				metadata = wrapper.Metadata
-				if len(metadata) > 0 {
-					ctx = s.contextPropagator.Inject(ctx, metadata)
+				if len(wrapper.Metadata) > 0 {
+					msgCtx = s.contextPropagator.Inject(msgCtx, wrapper.Metadata)
 				}
-				// Re-encode the requests array for batch handling
-				if batchRaw, err := json.Marshal(wrapper.Requests); err == nil {
-					raw = batchRaw
-				}
+				s.handleEntries(msgCtx, wrapper.Requests)
+				continue
 			}
 		}
 
 		if raw[0] == '[' {
-			s.handleBatch(ctx, raw)
+			s.handleBatch(msgCtx, raw)
 			continue
 		}
 
@@ -119,9 +116,11 @@ func (s *RawServer) Serve(ctx context.Context) error {
 			continue
 		}
 
-		if resp := s.handleRequest(ctx, &req); resp != nil {
-			s.sendResponse(resp)
-		}
+		go func() {
+			if resp := s.handleRequest(msgCtx, &req); resp != nil {
+				s.sendResponse(resp)
+			}
+		}()
 	}
 }
 
@@ -152,7 +151,6 @@ func (s *RawServer) CloseError() error {
 }
 
 func (s *RawServer) handleRequest(ctx context.Context, req *Request) *Response {
-	ctx = slogx.Context(ctx)
 	if req.Method == "" {
 		return s.errorResponse(req.ID, InvalidRequest, "method is required", nil)
 	}
@@ -170,24 +168,23 @@ func (s *RawServer) handleRequest(ctx context.Context, req *Request) *Response {
 }
 
 func (s *RawServer) handleBatch(ctx context.Context, raw json.RawMessage) {
-	ctx = slogx.Context(ctx)
 	var entries []json.RawMessage
 	if err := json.Unmarshal(raw, &entries); err != nil {
 		s.sendResponse(s.errorResponseWithNull(InvalidRequest, "invalid request", err))
 		return
 	}
+	s.handleEntries(ctx, entries)
+}
+
+func (s *RawServer) handleEntries(ctx context.Context, entries []json.RawMessage) {
 	if len(entries) == 0 {
 		s.sendResponse(s.errorResponseWithNull(InvalidRequest, "invalid request", errors.New("empty batch")))
 		return
 	}
 
-	type batchResult struct {
-		idx  int
-		resp *Response
-	}
-
-	responses := make(map[int]*Response, len(entries))
-	resultCh := make(chan batchResult, len(entries))
+	// Each goroutine writes only to its own slot, so no synchronization beyond
+	// the WaitGroup is needed.
+	responses := make([]*Response, len(entries))
 	var wg sync.WaitGroup
 
 	for i, element := range entries {
@@ -196,26 +193,18 @@ func (s *RawServer) handleBatch(ctx context.Context, raw json.RawMessage) {
 			responses[i] = s.errorResponseWithNull(InvalidRequest, "invalid request", err)
 			continue
 		}
-		reqCopy := req
 		wg.Add(1)
-		go func(idx int, r Request) {
+		go func(idx int, r *Request) {
 			defer wg.Done()
-			if resp := s.handleRequest(ctx, &r); resp != nil {
-				resultCh <- batchResult{idx: idx, resp: resp}
-			}
-		}(i, reqCopy)
+			responses[idx] = s.handleRequest(ctx, r)
+		}(i, &req)
 	}
 
 	wg.Wait()
-	close(resultCh)
-
-	for res := range resultCh {
-		responses[res.idx] = res.resp
-	}
 
 	ordered := make([]*Response, 0, len(entries))
-	for i := 0; i < len(entries); i++ {
-		if resp, ok := responses[i]; ok && resp != nil {
+	for _, resp := range responses {
+		if resp != nil {
 			ordered = append(ordered, resp)
 		}
 	}

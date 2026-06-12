@@ -70,19 +70,14 @@ func (p *DefaultContextPropagator) Inject(ctx context.Context, metadata map[stri
 }
 
 // ContextKeyFor returns the context key used internally for the given string
-// key. The same key may be used to read values that this package injects
-// into the context via ContextPropagator.Inject.
-//
-// For trace propagation specifically, prefer ella.to/otel/oteljsonrpc which
-// provides a ContextPropagator that serializes W3C TraceContext + Baggage
-// into the metadata map used by both the HTTP and raw transports.
+// key. Pass the returned value to slogx.FilterHandler.SetTraceIDKey so the
+// log filter can read values that this package injects into the context via
+// ContextPropagator.Inject.
 //
 // Example:
 //
 //	propagator := jsonrpc.NewDefaultContextPropagator("trace-id")
-//	srv := jsonrpc.NewRawServer(conn, h, jsonrpc.WithContextPropagation(propagator))
-//	// inside a handler:
-//	val := ctx.Value(jsonrpc.ContextKeyFor("trace-id"))
+//	filter.SetTraceIDKey(jsonrpc.ContextKeyFor("trace-id"))
 func ContextKeyFor(key string) any {
 	return contextKey(key)
 }

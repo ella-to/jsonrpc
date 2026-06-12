@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"ella.to/jsonrpc"
-	"ella.to/slogx"
 )
 
 // demonstrateHTTPContextPropagation shows how to use context propagation with HTTP transport
@@ -21,8 +20,7 @@ func demonstrateHTTPContextPropagation() {
 
 	// Create a handler that uses propagated context
 	handler := jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
-
+		// Extract propagated values
 		requestID, _ := jsonrpc.ContextValue(ctx, "request-id")
 		userID, _ := jsonrpc.ContextValue(ctx, "user-id")
 
@@ -72,8 +70,7 @@ func demonstrateRawContextPropagation() {
 
 	// Create a handler that uses propagated context
 	handler := jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
-
+		// Extract propagated values
 		traceID, _ := jsonrpc.ContextValue(ctx, "trace-id")
 		sessionID, _ := jsonrpc.ContextValue(ctx, "session-id")
 
@@ -135,7 +132,6 @@ func demonstrateBatchWithContext() {
 	propagator := jsonrpc.NewDefaultContextPropagator("batch-id")
 
 	handler := jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
 		batchID, _ := jsonrpc.ContextValue(ctx, "batch-id")
 		fmt.Printf("  Server processing %s with batch ID: %s\n", req.Method, batchID)
 
@@ -176,7 +172,6 @@ type TimestampPropagator struct {
 }
 
 func (p *TimestampPropagator) Extract(ctx context.Context) map[string]string {
-	ctx = slogx.Context(ctx)
 	metadata := p.DefaultContextPropagator.Extract(ctx)
 	if metadata == nil {
 		metadata = make(map[string]string)
@@ -194,7 +189,6 @@ func demonstrateCustomPropagator() {
 	propagator := &TimestampPropagator{DefaultContextPropagator: basePropagator}
 
 	handler := jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
 		requestID, _ := jsonrpc.ContextValue(ctx, "request-id")
 		timestamp, _ := jsonrpc.ContextValue(ctx, "client-timestamp")
 

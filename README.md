@@ -40,18 +40,14 @@ All transports handle batching natively — you can send multiple requests in a 
 Wrap your handler with `NewHTTPHandler` and mount it on any `http.ServeMux`:
 
 ```go
-handler := jsonrpc.Handler(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+handler := jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
     switch req.Method {
     case "add":
         var params struct{ A, B int }
         json.Unmarshal(req.Params, &params)
-        result := params.A + params.B
-        return &jsonrpc.Response{ID: req.ID, Result: result}
+        return req.CreateResponse(params.A + params.B)
     default:
-        return &jsonrpc.Response{
-            ID:    req.ID,
-            Error: jsonrpc.NewError(jsonrpc.MethodNotFound, "unknown method"),
-        }
+        return req.CreateErrorResponse(jsonrpc.NewError(jsonrpc.MethodNotFound, "unknown method"))
     }
 })
 
@@ -163,9 +159,9 @@ responses, err := client.Call(ctx, jsonrpc.WithRequest("getProfile", nil, false)
 
 // Server side — values are automatically injected into the handler's context
 handler := jsonrpc.NewHTTPHandler(
-    jsonrpc.Handler(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-        traceID := jsonrpc.ContextValue(ctx, "trace-id") // "abc-123"
-        userID := jsonrpc.ContextValue(ctx, "user-id")   // "alice"
+    jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+        traceID, _ := jsonrpc.ContextValue(ctx, "trace-id") // "abc-123"
+        userID, _ := jsonrpc.ContextValue(ctx, "user-id")   // "alice"
         // ...
     }),
     jsonrpc.WithContextPropagation(propagator),
@@ -190,7 +186,7 @@ Create errors with optional cause chaining:
 err := jsonrpc.NewError(jsonrpc.InvalidParams, "name is required")
 
 // With a wrapped cause
-err := jsonrpc.NewError(jsonrpc.InternalError, "db failure", dbErr)
+err := jsonrpc.NewError(jsonrpc.InternalError, "db failure").WithCause(dbErr)
 ```
 
 Errors support `errors.Is()` and `errors.Unwrap()` for standard Go error patterns.
@@ -201,11 +197,12 @@ Errors support `errors.Is()` and `errors.Unwrap()` for standard Go error pattern
 // Custom HTTP client
 client := jsonrpc.NewHTTPClient(url, jsonrpc.WithHttpClient(customClient))
 
-// Trace mode (logs request/response bodies)
+// Trace mode (appends each request's method name to the URL as an
+// `ella_t` query parameter, useful for spotting calls in access logs)
 client := jsonrpc.NewHTTPClient(url, jsonrpc.WithTrace(true))
 
 // Custom headers
-client := jsonrpc.NewHTTPClient(url, jsonrpc.WithHeader("Authorization", "Bearer token"))
+client := jsonrpc.NewHTTPClient(url).WithHeader("Authorization", "Bearer token")
 ```
 
 ## License

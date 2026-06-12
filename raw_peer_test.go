@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"ella.to/jsonrpc"
-	"ella.to/slogx"
 )
 
 type peerHarness struct {
@@ -85,7 +84,6 @@ func TestPeerBasicCall(t *testing.T) {
 	h := newPeerHarness(t,
 		nil, // peer1 has no handler
 		jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-			ctx = slogx.Context(ctx)
 			reqCh <- *req
 			return req.CreateResponse(map[string]string{"message": "pong"})
 		}),
@@ -125,11 +123,9 @@ func TestPeerBidirectionalCalls(t *testing.T) {
 	// Both peers can call each other
 	h := newPeerHarness(t,
 		jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-			ctx = slogx.Context(ctx)
 			return req.CreateResponse("from-peer1")
 		}),
 		jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-			ctx = slogx.Context(ctx)
 			return req.CreateResponse("from-peer2")
 		}),
 	)
@@ -168,7 +164,6 @@ func TestPeerNestedCall(t *testing.T) {
 	var peer2 *jsonrpc.RawPeer
 
 	handler1 := jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
 		if req.Method == "getSecret" {
 			return req.CreateResponse("secret-value")
 		}
@@ -176,7 +171,6 @@ func TestPeerNestedCall(t *testing.T) {
 	})
 
 	handler2 := jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
 		if req.Method == "processWithSecret" {
 			// Call back to peer1 to get the secret - this would deadlock without proper handling
 			responses, err := peer2.Call(ctx, jsonrpc.WithRequest("getSecret", nil, false))
@@ -238,7 +232,6 @@ func TestPeerDeepNestedCalls(t *testing.T) {
 	var peer1, peer2 *jsonrpc.RawPeer
 
 	handler1 := jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
 		mu.Lock()
 		currentDepth := depth
 		depth++
@@ -261,7 +254,6 @@ func TestPeerDeepNestedCalls(t *testing.T) {
 	})
 
 	handler2 := jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
 		mu.Lock()
 		currentDepth := depth
 		depth++
@@ -313,13 +305,11 @@ func TestPeerDeepNestedCalls(t *testing.T) {
 func TestPeerConcurrentCalls(t *testing.T) {
 	h := newPeerHarness(t,
 		jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-			ctx = slogx.Context(ctx)
-
+			// Simulate some work
 			time.Sleep(10 * time.Millisecond)
 			return req.CreateResponse(req.Method)
 		}),
 		jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-			ctx = slogx.Context(ctx)
 			time.Sleep(10 * time.Millisecond)
 			return req.CreateResponse(req.Method)
 		}),
@@ -372,7 +362,6 @@ func TestPeerNotification(t *testing.T) {
 	h := newPeerHarness(t,
 		nil,
 		jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-			ctx = slogx.Context(ctx)
 			notifyCh <- *req
 			return nil
 		}),
@@ -403,7 +392,6 @@ func TestPeerCallWithNilResultResponse(t *testing.T) {
 	h := newPeerHarness(t,
 		nil,
 		jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-			ctx = slogx.Context(ctx)
 			return req.CreateResponse(nil)
 		}),
 	)

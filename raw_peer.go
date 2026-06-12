@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"io"
 	"sync"
-
-	"ella.to/slogx"
 )
 
 // RawPeer implements a bidirectional JSON-RPC 2.0 peer that can both send
@@ -64,7 +62,6 @@ func (p *RawPeer) SetHandler(handler Handler) {
 // outgoing calls. Serve blocks until the context is canceled or the connection
 // is closed. It is safe to call Call from within a handler.
 func (p *RawPeer) Serve(ctx context.Context) error {
-	ctx = slogx.Context(ctx)
 	for {
 		select {
 		case <-ctx.Done():
@@ -137,24 +134,24 @@ const (
 // classifyMessage determines if a raw JSON message is a request or response.
 // Requests have a "method" field, responses have "result" or "error" fields.
 func (p *RawPeer) classifyMessage(raw json.RawMessage) messageType {
-	var probe map[string]json.RawMessage
+	// A non-nil json.RawMessage means the field was present, even if null.
+	var probe struct {
+		Method json.RawMessage `json:"method"`
+		Result json.RawMessage `json:"result"`
+		Error  json.RawMessage `json:"error"`
+		ID     json.RawMessage `json:"id"`
+	}
 	if err := json.Unmarshal(raw, &probe); err != nil {
 		return messageTypeUnknown
 	}
 
 	// If it has a method field, it's a request.
-	if _, hasMethod := probe["method"]; hasMethod {
+	if probe.Method != nil {
 		return messageTypeRequest
 	}
 
 	// Responses have either result, error, or id fields and no method.
-	if _, hasResult := probe["result"]; hasResult {
-		return messageTypeResponse
-	}
-	if _, hasError := probe["error"]; hasError {
-		return messageTypeResponse
-	}
-	if _, hasID := probe["id"]; hasID {
+	if probe.Result != nil || probe.Error != nil || probe.ID != nil {
 		return messageTypeResponse
 	}
 
@@ -165,7 +162,6 @@ func (p *RawPeer) classifyMessage(raw json.RawMessage) messageType {
 // Notifications (requests without an ID) will have nil entries in the returned
 // slice. It is safe to call this from within a request handler.
 func (p *RawPeer) Call(ctx context.Context, requests ...*Request) ([]*Response, error) {
-	ctx = slogx.Context(ctx)
 	if len(requests) == 0 {
 		return nil, nil
 	}
@@ -278,7 +274,6 @@ func (p *RawPeer) CloseError() error {
 }
 
 func (p *RawPeer) handleRequest(ctx context.Context, req *Request) {
-	ctx = slogx.Context(ctx)
 	if req.Method == "" {
 		p.sendResponse(&Response{
 			JSONRPC: Version,
@@ -309,7 +304,6 @@ func (p *RawPeer) handleRequest(ctx context.Context, req *Request) {
 }
 
 func (p *RawPeer) handleBatch(ctx context.Context, raw json.RawMessage) {
-	ctx = slogx.Context(ctx)
 	var entries []json.RawMessage
 	if err := json.Unmarshal(raw, &entries); err != nil {
 		p.sendResponse(&Response{
@@ -373,14 +367,9 @@ func (p *RawPeer) handleBatchRequests(ctx context.Context, entries []json.RawMes
 	raw json.RawMessage
 },
 ) {
-	ctx = slogx.Context(ctx)
-	type batchResult struct {
-		idx  int
-		resp *Response
-	}
-
-	responses := make(map[int]*Response, len(requestEntries))
-	resultCh := make(chan batchResult, len(requestEntries))
+	// Each goroutine writes only to its own slot, so no synchronization beyond
+	// the WaitGroup is needed.
+	responses := make([]*Response, len(entries))
 	var wg sync.WaitGroup
 
 	for _, entry := range requestEntries {
@@ -392,37 +381,31 @@ func (p *RawPeer) handleBatchRequests(ctx context.Context, entries []json.RawMes
 			}
 			continue
 		}
-		reqCopy := req
 		wg.Add(1)
-		go func(idx int, r Request) {
+		go func(idx int, r *Request) {
 			defer wg.Done()
 			if r.Method == "" || r.JSONRPC != Version {
 				if r.ID != nil {
-					resultCh <- batchResult{idx: idx, resp: &Response{
+					responses[idx] = &Response{
 						JSONRPC: Version,
 						Error:   &Error{Code: InvalidRequest, Message: "invalid request"},
 						ID:      r.ID,
-					}}
+					}
 				}
 				return
 			}
-			resp := p.handler.Handle(ctx, &r)
+			resp := p.handler.Handle(ctx, r)
 			if r.ID != nil && resp != nil {
-				resultCh <- batchResult{idx: idx, resp: resp}
+				responses[idx] = resp
 			}
-		}(entry.idx, reqCopy)
+		}(entry.idx, &req)
 	}
 
 	wg.Wait()
-	close(resultCh)
-
-	for res := range resultCh {
-		responses[res.idx] = res.resp
-	}
 
 	ordered := make([]*Response, 0, len(requestEntries))
-	for i := 0; i < len(entries); i++ {
-		if resp, ok := responses[i]; ok && resp != nil {
+	for _, resp := range responses {
+		if resp != nil {
 			ordered = append(ordered, resp)
 		}
 	}

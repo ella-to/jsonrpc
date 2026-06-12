@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strconv"
 
-	"ella.to/slogx"
 	"github.com/rs/xid"
 )
 
@@ -47,7 +46,15 @@ func (r *Request) CreateResponse(result any) *Response {
 		return resp
 	}
 
-	raw, _ := json.Marshal(result)
+	raw, err := json.Marshal(result)
+	if err != nil {
+		resp.Error = &Error{
+			Code:    InternalError,
+			Message: "failed to marshal result",
+			Cause:   err,
+		}
+		return resp
+	}
 	resp.Result = raw
 	return resp
 }
@@ -246,7 +253,6 @@ type HandlerFunc func(ctx context.Context, req *Request) *Response
 
 // Handle dispatches the request to f.
 func (f HandlerFunc) Handle(ctx context.Context, req *Request) *Response {
-	ctx = slogx.Context(ctx)
 	return f(ctx, req)
 }
 

@@ -8,8 +8,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-
-	"ella.to/slogx"
 )
 
 type (
@@ -21,12 +19,10 @@ const (
 )
 
 func injectHttpResp(ctx context.Context, w http.ResponseWriter) context.Context {
-	ctx = slogx.Context(ctx)
 	return context.WithValue(ctx, httpCtxKeyResp, w)
 }
 
 func HttpRespFromContext(ctx context.Context) http.ResponseWriter {
-	ctx = slogx.Context(ctx)
 	val := ctx.Value(httpCtxKeyResp)
 	resp, ok := val.(http.ResponseWriter)
 	if !ok {
@@ -92,23 +88,20 @@ func (s *httpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Extract and inject context metadata from HTTP headers
 	if s.contextPropagator != nil {
-		metadata := make(map[string]string)
 		const metaPrefix = "X-Rpc-Meta-"
+		var metadata map[string]string
+		// Header keys parsed by net/http are already in canonical form.
 		for key, values := range r.Header {
-			if len(values) > 0 {
-				// HTTP headers are case-insensitive, Go canonicalizes them
-				canonicalKey := http.CanonicalHeaderKey(key)
-				if len(canonicalKey) > len(metaPrefix) {
-					// Check if this header starts with our metadata prefix
-					if canonicalKey[:len(metaPrefix)] == metaPrefix {
-						// Extract the key part and convert to lowercase to match original key names
-						// e.g., "Request-Id" becomes "request-id"
-						actualKey := canonicalKey[len(metaPrefix):]
-						normalizedKey := strings.ToLower(actualKey)
-						metadata[normalizedKey] = values[0]
-					}
-				}
+			actualKey, ok := strings.CutPrefix(key, metaPrefix)
+			if !ok || actualKey == "" || len(values) == 0 {
+				continue
 			}
+			if metadata == nil {
+				metadata = make(map[string]string)
+			}
+			// Lowercase to match the original key names used by the client,
+			// e.g. "Request-Id" becomes "request-id".
+			metadata[strings.ToLower(actualKey)] = values[0]
 		}
 		if len(metadata) > 0 {
 			ctx = s.contextPropagator.Inject(ctx, metadata)
@@ -135,7 +128,6 @@ func (s *httpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *httpServer) handleBatch(ctx context.Context, w http.ResponseWriter, raw json.RawMessage) {
-	ctx = slogx.Context(ctx)
 	var entries []json.RawMessage
 	if err := json.Unmarshal(raw, &entries); err != nil {
 		s.writeJSON(w, s.errorResponseWithNull(InvalidRequest, "invalid request", err))
@@ -168,7 +160,6 @@ func (s *httpServer) handleBatch(ctx context.Context, w http.ResponseWriter, raw
 }
 
 func (s *httpServer) handleRequest(ctx context.Context, req *Request) *Response {
-	ctx = slogx.Context(ctx)
 	if req.Method == "" {
 		return s.errorResponse(req.ID, InvalidRequest, "method is required", nil)
 	}

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"ella.to/jsonrpc"
-	"ella.to/slogx"
 )
 
 type serverHarness struct {
@@ -96,7 +95,6 @@ func TestClientCallSuccess(t *testing.T) {
 	reqCh := make(chan jsonrpc.Request, 1)
 
 	h := newServerHarness(t, jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
 		reqCh <- *req
 		return req.CreateResponse(map[string]string{"message": "pong"})
 	}))
@@ -148,7 +146,6 @@ func TestClientNotify(t *testing.T) {
 	notifyCh := make(chan jsonrpc.Request, 1)
 
 	h := newServerHarness(t, jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
 		notifyCh <- *req
 		return nil
 	}))
@@ -185,7 +182,6 @@ func TestClientBatch(t *testing.T) {
 	reqCh := make(chan jsonrpc.Request, 3)
 
 	h := newServerHarness(t, jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
 		reqCh <- *req
 		if req.Method == "error" {
 			return req.CreateErrorResponse(
@@ -265,7 +261,6 @@ func TestClientBatch(t *testing.T) {
 
 func TestClientCallErrors(t *testing.T) {
 	h := newServerHarness(t, jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
 		switch req.Method {
 		case "missing":
 			return req.CreateErrorResponse(
@@ -328,7 +323,6 @@ func TestServerHandlesBatchRequests(t *testing.T) {
 	callCh := make(chan string, 3)
 
 	h := newRawServerHarness(t, jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
 		callCh <- req.Method
 		return req.CreateResponse(map[string]any{"method": req.Method})
 	}))
@@ -419,7 +413,6 @@ func TestServerHandlesBatchRequests(t *testing.T) {
 
 func TestServerHandlesBatchWithInvalidEntries(t *testing.T) {
 	h := newRawServerHarness(t, jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
-		ctx = slogx.Context(ctx)
 		return req.CreateResponse(req.Method)
 	}))
 
