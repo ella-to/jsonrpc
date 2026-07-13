@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -482,4 +483,99 @@ func recv[T any](t *testing.T, ch <-chan T) T {
 	}
 	var zero T
 	return zero
+}
+
+// TestRawServerNestedCall verifies that a handler can call back into the same
+// server over the same connection. RawClient always encodes calls as batches,
+// and batches used to be handled synchronously in the read loop, so the nested
+// request was never read and the connection deadlocked permanently.
+func TestRawServerNestedCall(t *testing.T) {
+	var clientRef atomic.Pointer[jsonrpc.RawClient]
+
+	handler := jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+		switch req.Method {
+		case "outer":
+			responses, err := clientRef.Load().Call(ctx, jsonrpc.WithRequest("inner", nil, false))
+			if err != nil {
+				return req.CreateErrorResponse(jsonrpc.NewError(jsonrpc.InternalError, "nested call failed: %v", err))
+			}
+			if responses[0].Error != nil {
+				return req.CreateErrorResponse(responses[0].Error)
+			}
+			var inner string
+			if err := json.Unmarshal(responses[0].Result, &inner); err != nil {
+				return req.CreateErrorResponse(jsonrpc.NewError(jsonrpc.InternalError, "decode inner result: %v", err))
+			}
+			return req.CreateResponse("outer+" + inner)
+		case "inner":
+			return req.CreateResponse("inner")
+		default:
+			return req.CreateErrorResponse(jsonrpc.NewError(jsonrpc.MethodNotFound, "method %q not found", req.Method))
+		}
+	})
+
+	h := newServerHarness(t, handler)
+	clientRef.Store(h.client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	responses, err := h.client.Call(ctx, jsonrpc.WithRequest("outer", nil, false))
+	if err != nil {
+		t.Fatalf("Call failed: %v", err)
+	}
+	if responses[0].Error != nil {
+		t.Fatalf("unexpected error response: %v", responses[0].Error)
+	}
+	var got string
+	if err := json.Unmarshal(responses[0].Result, &got); err != nil {
+		t.Fatalf("failed to decode result: %v", err)
+	}
+	if got != "outer+inner" {
+		t.Fatalf("expected %q, got %q", "outer+inner", got)
+	}
+}
+
+// TestRawServerConcurrentCalls verifies that a slow handler does not block
+// other calls on the same connection.
+func TestRawServerConcurrentCalls(t *testing.T) {
+	release := make(chan struct{})
+	slowStarted := make(chan struct{})
+
+	handler := jsonrpc.HandlerFunc(func(ctx context.Context, req *jsonrpc.Request) *jsonrpc.Response {
+		switch req.Method {
+		case "slow":
+			close(slowStarted)
+			<-release
+			return req.CreateResponse("slow")
+		case "fast":
+			return req.CreateResponse("fast")
+		default:
+			return req.CreateErrorResponse(jsonrpc.NewError(jsonrpc.MethodNotFound, "method %q not found", req.Method))
+		}
+	})
+
+	h := newServerHarness(t, handler)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	slowDone := make(chan error, 1)
+	go func() {
+		_, err := h.client.Call(ctx, jsonrpc.WithRequest("slow", nil, false))
+		slowDone <- err
+	}()
+
+	recv(t, slowStarted)
+
+	// While the slow handler is still running, an independent call must
+	// complete instead of queueing behind it.
+	if _, err := h.client.Call(ctx, jsonrpc.WithRequest("fast", nil, false)); err != nil {
+		t.Fatalf("fast call blocked behind slow handler: %v", err)
+	}
+
+	close(release)
+	if err := recv(t, slowDone); err != nil {
+		t.Fatalf("slow call failed: %v", err)
+	}
 }

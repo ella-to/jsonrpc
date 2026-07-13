@@ -54,9 +54,11 @@ func NewRawServer(rwc io.ReadWriteCloser, handler Handler, opts ...RawServerOpt)
 }
 
 // Serve reads requests from the transport until the context is canceled or the
-// connection terminates. It launches a goroutine per request so handler calls
-// can run concurrently. The returned error is nil when the peer closes the
-// connection cleanly.
+// connection terminates. It launches a goroutine per message (single requests
+// and batches alike) so handler calls can run concurrently and the read loop
+// never blocks on a handler. This allows a handler to make nested calls back
+// over the same connection without deadlocking. The returned error is nil when
+// the peer closes the connection cleanly.
 func (s *RawServer) Serve(ctx context.Context) error {
 	for {
 		select {
@@ -100,13 +102,13 @@ func (s *RawServer) Serve(ctx context.Context) error {
 				if len(wrapper.Metadata) > 0 {
 					msgCtx = s.contextPropagator.Inject(msgCtx, wrapper.Metadata)
 				}
-				s.handleEntries(msgCtx, wrapper.Requests)
+				go s.handleEntries(msgCtx, wrapper.Requests)
 				continue
 			}
 		}
 
 		if raw[0] == '[' {
-			s.handleBatch(msgCtx, raw)
+			go s.handleBatch(msgCtx, raw)
 			continue
 		}
 
